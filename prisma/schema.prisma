@@ -1,0 +1,604 @@
+// Aneakajun — Cambodian People & Organization Information Hub
+//
+// Bilingual content pattern:
+//   * Long-form content (Person, Organization, Article) keeps language-specific
+//     text in a *Translation table: one row per locale. English is required,
+//     Khmer optional (falls back to English).
+//   * Short labels (Category, Tag, Skill, Location) use `name` + `nameKm`.
+// Non-translatable data (slug, status, relations, dates) lives once on the parent.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pg_trgm]
+}
+
+enum Locale {
+  en
+  km
+}
+
+/// Publication lifecycle. IN_REVIEW is used by contributors (submit for approval).
+enum ContentStatus {
+  DRAFT
+  IN_REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum CategoryType {
+  INDUSTRY
+  PEOPLE
+  ORGANIZATION
+  ARTICLE
+}
+
+enum LocationType {
+  COUNTRY
+  PROVINCE
+  CITY
+}
+
+// ───────────────────────────── Access control ─────────────────────────────
+
+model Role {
+  id          String           @id @default(cuid())
+  key         String           @unique // SUPER_ADMIN | ADMIN | EDITOR | CONTRIBUTOR
+  name        String
+  description String?
+  rank        Int              @default(0) // higher = more privileged
+  permissions RolePermission[]
+  users       User[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model Permission {
+  id          String           @id @default(cuid())
+  key         String           @unique // e.g. "content.publish"
+  description String?
+  roles       RolePermission[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model User {
+  id               String    @id @default(cuid())
+  email            String    @unique
+  name             String
+  passwordHash     String
+  roleId           String
+  role             Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  isActive         Boolean   @default(true)
+  lastLoginAt      DateTime?
+  failedLoginCount Int       @default(0)
+  lockedUntil      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  sessions           Session[]
+  auditLogs          AuditLog[]
+  mediaUploads       Media[]
+  peopleCreated      Person[]       @relation("PersonCreatedBy")
+  orgsCreated        Organization[] @relation("OrganizationCreatedBy")
+  articlesCreated    Article[]      @relation("ArticleCreatedBy")
+  reviewedSubmission Submission[]   @relation("SubmissionReviewer")
+  notifications      Notification[]
+  bookmarks          Bookmark[]
+
+  @@index([roleId])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique // SHA-256 of the cookie token; the raw token is never stored
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String // create | update | delete | publish | login | ...
+  entityType String // Person | Organization | Article | ...
+  entityId   String?
+  summary    String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+  @@index([userId])
+}
+
+// ───────────────────────────── Taxonomy ─────────────────────────────
+
+model Category {
+  id          String       @id @default(cuid())
+  type        CategoryType
+  slug        String
+  name        String
+  nameKm      String?
+  description String?
+  isFeatured  Boolean      @default(false)
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  peopleInCategory Person[]       @relation("PersonCategory")
+  peopleInIndustry Person[]       @relation("PersonIndustry")
+  orgsInCategory   Organization[] @relation("OrganizationCategory")
+  orgsInIndustry   Organization[] @relation("OrganizationIndustry")
+  articles         Article[]
+  opportunities    Opportunity[]
+
+  @@unique([type, slug])
+  @@index([type, isFeatured, sortOrder])
+}
+
+model Tag {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  name      String
+  nameKm    String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  articles  ArticleTag[]
+}
+
+model Skill {
+  id        String        @id @default(cuid())
+  slug      String        @unique
+  name      String
+  nameKm    String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  people    PersonSkill[]
+}
+
+model Location {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  type      LocationType
+  name      String
+  nameKm    String?
+  parentId  String?
+  parent    Location?    @relation("LocationHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Location[]   @relation("LocationHierarchy")
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  people        Person[]
+  organizations Organization[]
+  events        Event[]
+  opportunities Opportunity[]
+
+  @@index([parentId])
+}
+
+// ───────────────────────────── Media ─────────────────────────────
+
+model Media {
+  id           String   @id @default(cuid())
+  storageKey   String   @unique // path inside the storage provider
+  url          String // public URL served by /media/...
+  originalName String
+  mimeType     String
+  sizeBytes    Int
+  altText      String?
+  altTextKm    String?
+  uploadedById String?
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  personPhotos    Person[]       @relation("PersonPhoto")
+  orgLogos        Organization[] @relation("OrganizationLogo")
+  orgCovers       Organization[] @relation("OrganizationCover")
+  articleFeatured Article[]      @relation("ArticleFeaturedImage")
+  eventImages     Event[]
+
+  @@index([createdAt(sort: Desc)])
+}
+
+// ───────────────────────────── People ─────────────────────────────
+
+model Person {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  status      ContentStatus @default(DRAFT)
+  isFeatured  Boolean       @default(false)
+  sortOrder   Int           @default(0)
+  photoId     String?
+  photo       Media?        @relation("PersonPhoto", fields: [photoId], references: [id], onDelete: SetNull)
+  locationId  String?
+  location    Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  industryId  String?
+  industry    Category?     @relation("PersonIndustry", fields: [industryId], references: [id], onDelete: SetNull)
+  categoryId  String?
+  category    Category?     @relation("PersonCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  websiteUrl  String?
+  linkedinUrl String?
+  facebookUrl String?
+  xUrl        String?
+  email       String?
+  publishedAt DateTime?
+  createdById String?
+  createdBy   User?         @relation("PersonCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  translations     PersonTranslation[]
+  education        PersonEducation[]
+  experience       PersonExperience[]
+  skills           PersonSkill[]
+  memberships      OrganizationMember[]
+  authoredArticles Article[]            @relation("ArticleAuthor")
+  articleMentions  ArticlePerson[]
+
+  @@index([status, isFeatured, sortOrder])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([locationId])
+  @@index([industryId])
+  @@index([categoryId])
+}
+
+model PersonTranslation {
+  id             String  @id @default(cuid())
+  personId       String
+  person         Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  locale         Locale
+  name           String
+  headline       String? // e.g. "Founder, Mekong Solar"
+  bio            String?
+  seoTitle       String?
+  seoDescription String?
+
+  @@unique([personId, locale])
+  @@index([locale])
+}
+
+model PersonEducation {
+  id          String  @id @default(cuid())
+  personId    String
+  person      Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+  institution String
+  degree      String?
+  field       String?
+  startYear   Int?
+  endYear     Int?
+  sortOrder   Int     @default(0)
+
+  @@index([personId, sortOrder])
+}
+
+model PersonExperience {
+  id               String        @id @default(cuid())
+  personId         String
+  person           Person        @relation(fields: [personId], references: [id], onDelete: Cascade)
+  title            String
+  organizationName String // free text, so past employers need not be listed organizations
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  startYear        Int?
+  endYear          Int? // null = current
+  description      String?
+  sortOrder        Int           @default(0)
+
+  @@index([personId, sortOrder])
+  @@index([organizationId])
+}
+
+model PersonSkill {
+  personId String
+  skillId  String
+  person   Person @relation(fields: [personId], references: [id], onDelete: Cascade)
+  skill    Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([personId, skillId])
+  @@index([skillId])
+}
+
+// ───────────────────────────── Organizations ─────────────────────────────
+
+model Organization {
+  id          String        @id @default(cuid())
+  slug        String        @unique
+  status      ContentStatus @default(DRAFT)
+  isFeatured  Boolean       @default(false)
+  sortOrder   Int           @default(0)
+  logoId      String?
+  logo        Media?        @relation("OrganizationLogo", fields: [logoId], references: [id], onDelete: SetNull)
+  coverId     String?
+  cover       Media?        @relation("OrganizationCover", fields: [coverId], references: [id], onDelete: SetNull)
+  locationId  String?
+  location    Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  industryId  String?
+  industry    Category?     @relation("OrganizationIndustry", fields: [industryId], references: [id], onDelete: SetNull)
+  categoryId  String?
+  category    Category?     @relation("OrganizationCategory", fields: [categoryId], references: [id], onDelete: SetNull)
+  foundedYear Int?
+  websiteUrl  String?
+  email       String?
+  phone       String?
+  facebookUrl String?
+  linkedinUrl String?
+  publishedAt DateTime?
+  createdById String?
+  createdBy   User?         @relation("OrganizationCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  translations    OrganizationTranslation[]
+  members         OrganizationMember[]
+  experiences     PersonExperience[]
+  articleMentions ArticleOrganization[]
+  events          Event[]
+  opportunities   Opportunity[]
+
+  @@index([status, isFeatured, sortOrder])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([locationId])
+  @@index([industryId])
+  @@index([categoryId])
+}
+
+model OrganizationTranslation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locale         Locale
+  name           String
+  tagline        String?
+  description    String?
+  mission        String?
+  vision         String?
+  activities     String? // one activity per line
+  address        String?
+  seoTitle       String?
+  seoDescription String?
+
+  @@unique([organizationId, locale])
+  @@index([locale])
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  personId       String
+  person         Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  role           String? // e.g. "Co-founder & CEO"
+  isKeyPerson    Boolean      @default(false)
+  isCurrent      Boolean      @default(true)
+  sortOrder      Int          @default(0)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, personId])
+  @@index([personId])
+}
+
+// ───────────────────────────── Articles ─────────────────────────────
+
+model Article {
+  id              String        @id @default(cuid())
+  slug            String        @unique
+  status          ContentStatus @default(DRAFT)
+  isFeatured      Boolean       @default(false)
+  sortOrder       Int           @default(0)
+  categoryId      String?
+  category        Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorPersonId  String?
+  authorPerson    Person?       @relation("ArticleAuthor", fields: [authorPersonId], references: [id], onDelete: SetNull)
+  featuredImageId String?
+  featuredImage   Media?        @relation("ArticleFeaturedImage", fields: [featuredImageId], references: [id], onDelete: SetNull)
+  publishedAt     DateTime?
+  createdById     String?
+  createdBy       User?         @relation("ArticleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  translations  ArticleTranslation[]
+  tags          ArticleTag[]
+  people        ArticlePerson[]
+  organizations ArticleOrganization[]
+
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([status, isFeatured, sortOrder])
+  @@index([categoryId])
+  @@index([authorPersonId])
+}
+
+model ArticleTranslation {
+  id             String  @id @default(cuid())
+  articleId      String
+  article        Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  locale         Locale
+  title          String
+  excerpt        String?
+  body           String // lightweight Markdown
+  seoTitle       String?
+  seoDescription String?
+
+  @@unique([articleId, locale])
+  @@index([locale])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+}
+
+model ArticlePerson {
+  articleId String
+  personId  String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  person    Person  @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, personId])
+  @@index([personId])
+}
+
+model ArticleOrganization {
+  articleId      String
+  organizationId String
+  article        Article      @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, organizationId])
+  @@index([organizationId])
+}
+
+// ───────────────────────────── Site settings ─────────────────────────────
+
+model SiteSettings {
+  id            Int      @id @default(1)
+  siteName      String   @default("Aneakajun")
+  siteNameKm    String?
+  tagline       String?
+  taglineKm     String?
+  description   String?
+  descriptionKm String?
+  contactEmail  String?
+  contactPhone  String?
+  address       String?
+  addressKm     String?
+  facebookUrl   String?
+  telegramUrl   String?
+  youtubeUrl    String?
+  linkedinUrl   String?
+  footerNote    String?
+  footerNoteKm  String?
+  updatedAt     DateTime @updatedAt
+}
+
+// ───────────── Phase 2 (schema prepared, no UI or workflow yet) ─────────────
+
+enum SubmissionStatus {
+  PENDING
+  CHANGES_REQUESTED
+  APPROVED
+  REJECTED
+}
+
+enum SubmissionEntity {
+  PERSON
+  ORGANIZATION
+  ARTICLE
+  EVENT
+  OPPORTUNITY
+}
+
+/// Visitor-proposed content. Approval creates/updates the target record as
+/// DRAFT/PUBLISHED via an admin — submissions never publish themselves.
+model Submission {
+  id             String           @id @default(cuid())
+  entityType     SubmissionEntity
+  targetId       String? // set when proposing an edit to an existing record
+  payload        Json
+  submitterName  String
+  submitterEmail String
+  status         SubmissionStatus @default(PENDING)
+  reviewerId     String?
+  reviewer       User?            @relation("SubmissionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewNote     String?
+  reviewedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model Event {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  status         ContentStatus @default(DRAFT)
+  title          String
+  titleKm        String?
+  description    String?
+  descriptionKm  String?
+  startsAt       DateTime
+  endsAt         DateTime?
+  locationId     String?
+  location       Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  imageId        String?
+  image          Media?        @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status, startsAt])
+}
+
+model Opportunity {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  status         ContentStatus @default(DRAFT)
+  title          String
+  titleKm        String?
+  description    String?
+  descriptionKm  String?
+  applyUrl       String?
+  deadline       DateTime?
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  categoryId     String?
+  category       Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  locationId     String?
+  location       Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([status, deadline])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  message   String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+}
+
+/// Polymorphic bookmark (entityType + entityId) for future member accounts.
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType String
+  entityId   String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, entityType, entityId])
+}

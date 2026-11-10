@@ -1,26 +1,123 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* Design tokens — one place for colour, type and radius. */
+@theme {
+  /* Type: Nanum Gothic (ClassyAds) for Latin, Noto Sans Khmer for Khmer script. */
+  --font-sans: var(--font-nanum), var(--font-khmer), ui-sans-serif, system-ui, sans-serif;
+
+  /* Colour (ClassyAds palette) */
+  --color-ink: #000000; /* headings */
+  --color-ink-soft: #4d4d4d; /* body text */
+  --color-muted: #666666;
+  --color-line: #e9ecef;
+  --color-surface: #ffffff;
+  --color-canvas: #f8f9fa; /* light section background */
+  --color-pill: #e9ecef; /* category / count pills */
+  --color-brand: #09786a; /* primary teal */
+  --color-brand-strong: #065c51;
+  --color-brand-soft: #e6f2f0;
+  --color-night: #333333; /* footer */
+  --color-gold: #b7791f;
+  --color-success: #15803d;
+  --color-warning: #b45309;
+  --color-danger: #b91c1c;
+
+  --radius-card: 7px;
+  --radius-control: 6px;
+  --shadow-card: 0 2px 20px -2px rgb(0 0 0 / 0.1);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Khmer script needs more line height to avoid clipped vowel signs. */
+:lang(km) body,
+:lang(km) {
+  line-height: 1.75;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+
+@utility container-page {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 71.25rem; /* 1140px, ClassyAds container */
+  padding-inline: 1rem;
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+}
+
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-[var(--radius-control)] px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60;
+}
+@utility btn-primary {
+  @apply btn bg-brand text-white hover:bg-brand-strong;
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-white text-ink hover:bg-canvas;
+}
+@utility btn-danger {
+  @apply btn border border-danger/30 bg-white text-danger hover:bg-danger hover:text-white;
+}
+@utility input {
+  @apply block w-full rounded-[var(--radius-control)] border border-[#ced4da] bg-white px-3 py-2 text-sm text-ink-soft placeholder:text-[#888] focus:border-brand focus:ring-2 focus:ring-brand/20 focus:outline-none;
+}
+@utility label {
+  @apply mb-1 block text-sm font-medium text-ink;
+}
+@utility card {
+  @apply rounded-[var(--radius-card)] border border-line bg-white;
+}
+
+/* ClassyAds-style elevated card: no border, soft shadow. */
+@utility card-elevated {
+  @apply rounded-[var(--radius-card)] bg-white shadow-[var(--shadow-card)];
+}
+
+/* Grey rounded pill used for categories and counts. */
+@utility pill {
+  @apply inline-flex items-center rounded-full bg-pill px-3.5 py-1 text-xs text-ink;
+}
+
+/* Full-width section rhythm. */
+@utility section {
+  @apply py-16 sm:py-24;
+}
+
+/* Long-form text (articles, bios). */
+@utility prose-content {
+  @apply text-[1.0625rem] leading-relaxed text-ink-soft;
+  & > * + * {
+    margin-top: 1.1em;
+  }
+  & h2 {
+    @apply mt-8 text-xl font-semibold text-ink;
+  }
+  & h3 {
+    @apply mt-6 text-lg font-semibold text-ink;
+  }
+  & ul {
+    @apply list-disc pl-6;
+  }
+  & li + li {
+    margin-top: 0.35em;
+  }
+  & blockquote {
+    @apply border-l-4 border-brand/40 pl-4 text-ink italic;
+  }
+  & a {
+    @apply text-brand underline underline-offset-2 hover:text-brand-strong;
+  }
 }
