@@ -1,0 +1,10 @@
+.next
+.next-build
+.next-dev
+node_modules
+/storage/
+.git
+.neon
+.env*
+!package.json
+!package-lock.json
