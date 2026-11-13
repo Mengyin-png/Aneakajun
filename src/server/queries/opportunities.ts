@@ -66,13 +66,18 @@ export function opportunitiesWhere(f: {
 }
 
 export async function listOpportunities(locale: Locale, take = 60) {
-  const rows = await prisma.opportunity.findMany({
-    where: opportunitiesWhere({}),
-    orderBy: [{ deadline: "asc" }, { createdAt: "desc" }],
-    include,
-    take,
-  });
-  return rows.map((o) => toOpportunityCard(o, locale));
+  try {
+    const rows = await prisma.opportunity.findMany({
+      where: opportunitiesWhere({}),
+      orderBy: [{ deadline: "asc" }, { createdAt: "desc" }],
+      include,
+      take,
+    });
+    return rows.map((o) => toOpportunityCard(o, locale));
+  } catch (error) {
+    console.error("Failed to list opportunities:", error);
+    return [];
+  }
 }
 
 export async function matchOpportunities(where: Prisma.OpportunityWhereInput) {
