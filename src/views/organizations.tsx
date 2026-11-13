@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { OrganizationCard } from "@/components/site/cards";
 import { FilterBar } from "@/components/site/filter-bar";
@@ -44,6 +45,38 @@ export default async function OrganizationsPage({ params, searchParams }: Props)
     categoryOptions("ORGANIZATION", locale),
   ]);
 
+  const activeFilters = [
+    q ? { key: "q", label: `"${q}"` } : null,
+    filters.location
+      ? {
+          key: "location",
+          label: `${t.common.location}: ${locations.find((l) => l.value === filters.location)?.label ?? filters.location}`,
+        }
+      : null,
+    filters.industry
+      ? {
+          key: "industry",
+          label: `${t.common.industry}: ${industries.find((i) => i.value === filters.industry)?.label ?? filters.industry}`,
+        }
+      : null,
+    filters.category
+      ? {
+          key: "category",
+          label: `${t.common.category}: ${categories.find((c) => c.value === filters.category)?.label ?? filters.category}`,
+        }
+      : null,
+  ].filter((f): f is { key: string; label: string } => Boolean(f));
+
+  const removeFilterHref = (key: string) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(filters)) {
+      if (k !== key && v) p.set(k, v);
+    }
+    if (str(sp.sort)) p.set("sort", str(sp.sort)!);
+    const qs = p.toString();
+    return localePath(locale, `/organizations${qs ? `?${qs}` : ""}`);
+  };
+
   return (
     <>
       <PageHero
@@ -79,9 +112,26 @@ export default async function OrganizationsPage({ params, searchParams }: Props)
             />
           </Suspense>
 
-          <p className="mt-10 mb-6 text-[15px] text-ink-soft" aria-live="polite">
-            {result.total} {t.common.results}
-          </p>
+          <div className="mt-8 mb-6 flex flex-wrap items-center justify-between gap-4">
+            <p className="text-[15px] font-medium text-ink-soft" aria-live="polite">
+              {result.total} {t.common.results}
+            </p>
+            {activeFilters.length > 0 && (
+              <ul className="flex flex-wrap items-center gap-2" aria-label={t.common.filters}>
+                {activeFilters.map((f) => (
+                  <li key={f.key}>
+                    <Link
+                      href={removeFilterHref(f.key)}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-line bg-white px-3 py-1 text-xs text-ink-soft shadow-xs transition hover:border-brand hover:text-brand"
+                    >
+                      <span>{f.label}</span>
+                      <span aria-hidden="true" className="font-bold text-muted hover:text-brand">✕</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           {result.items.length === 0 ? (
             <EmptyState text={t.common.noResults} />
           ) : (

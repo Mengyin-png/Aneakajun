@@ -55,12 +55,13 @@ export function ArticleView({
           {/* Mark the language of fallback (untranslated) content for screen readers. */}
           <article
             lang={article.isFallback ? "en" : undefined}
-            className="card-elevated relative z-10 -mt-12 overflow-hidden"
+            className="card-elevated relative z-10 -mt-8 sm:-mt-12 overflow-hidden"
           >
             {article.image && (
               <MediaPanel
                 src={article.image.url}
                 name={article.title}
+                alt={article.title}
                 sizes="(min-width: 1024px) 740px, 100vw"
                 className="aspect-video w-full"
               />
@@ -93,12 +94,15 @@ export function ArticleView({
                   <MediaPanel
                     src={article.author.photoUrl}
                     name={article.author.name}
+                    alt={article.author.name}
                     sizes="56px"
                     className="size-14 shrink-0 rounded-full [&_span]:text-lg"
                   />
                   <span>
                     <span className="block text-brand group-hover:underline">{article.author.name}</span>
-                    {article.author.bio && <span className="block text-sm text-ink-soft">{article.author.bio}</span>}
+                    {article.author.bio && (
+                      <span className="mt-0.5 line-clamp-3 block text-sm text-ink-soft">{article.author.bio}</span>
+                    )}
                   </span>
                 </Link>
               </SideCard>

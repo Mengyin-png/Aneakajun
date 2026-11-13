@@ -15,7 +15,7 @@ export function LanguageSwitcher({ locale, label }: { locale: Locale; label: str
       {LOCALES.map((l, i) => (
         <span key={l} className="flex items-center gap-1">
           {i > 0 && (
-            <span aria-hidden="true" className="text-[#ccc]">
+            <span aria-hidden="true" className="text-[#ccc] on-hero:text-white/40">
               /
             </span>
           )}
@@ -23,8 +23,8 @@ export function LanguageSwitcher({ locale, label }: { locale: Locale; label: str
             href={`${localePath(l, bare)}${search ? `?${search}` : ""}`}
             hrefLang={l}
             lang={l}
-            aria-current={l === locale ? "true" : undefined}
-            className={`px-1 py-2 ${l === locale ? "text-brand" : "text-black hover:text-brand"}`}
+            aria-current={l === locale ? "page" : undefined}
+            className={`rounded px-1 py-2 transition-colors ${l === locale ? "text-brand on-hero:text-white on-hero:underline on-hero:underline-offset-4" : "text-black hover:text-brand on-hero:text-white/80 on-hero:hover:text-white"}`}
           >
             {l === "en" ? "EN" : LOCALE_LABELS[l]}
           </Link>

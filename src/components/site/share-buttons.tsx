@@ -33,6 +33,7 @@ export function ShareButtons({
           className="btn-secondary px-3 py-1.5 text-xs"
         >
           {l.name}
+          <span className="sr-only"> (opens in new tab)</span>
         </a>
       ))}
       <button

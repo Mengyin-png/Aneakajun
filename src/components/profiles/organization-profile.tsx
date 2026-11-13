@@ -54,11 +54,12 @@ export function OrganizationProfileView({
 
       <div className="bg-canvas pb-20">
         <div className="container-page">
-          <section className="card-elevated relative z-10 -mt-12 overflow-hidden">
+          <section className="card-elevated relative z-10 -mt-8 sm:-mt-12 overflow-hidden">
             {org.coverUrl && (
               <MediaPanel
                 src={org.coverUrl}
                 name={org.name}
+                alt={`${org.name} cover`}
                 sizes="(min-width: 1140px) 1140px, 100vw"
                 className="h-44 w-full sm:h-56"
               />
@@ -67,6 +68,7 @@ export function OrganizationProfileView({
               <MediaPanel
                 src={org.logoUrl}
                 name={org.name}
+                alt={`${org.name} logo`}
                 sizes="112px"
                 fit="contain"
                 className="size-24 shrink-0 rounded-[7px] border border-line sm:size-28"
@@ -84,7 +86,7 @@ export function OrganizationProfileView({
                     </Chip>
                   )}
                 </div>
-                <h2 className="mt-3 text-2xl text-brand">{org.name}</h2>
+                <p className="mt-3 text-2xl font-bold text-brand">{org.name}</p>
                 <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-ink-soft">
                   {location && (
                     <span className="flex items-center gap-1">
@@ -180,10 +182,11 @@ export function OrganizationProfileView({
                           <a
                             href={c.href}
                             target={c.href.startsWith("http") ? "_blank" : undefined}
-                            rel="noopener noreferrer"
+                            rel={c.href.startsWith("http") ? "noopener noreferrer" : undefined}
                             className="break-all text-brand hover:underline"
                           >
                             {c.value}
+                            {c.href.startsWith("http") && <span className="sr-only"> ({t.journey.visitSite})</span>}
                           </a>
                         </dd>
                       </div>

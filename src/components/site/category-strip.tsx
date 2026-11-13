@@ -7,7 +7,7 @@ export type CategoryItem = { slug: string; name: string; count: number; href: st
 export function CategoryStrip({ items, label }: { items: CategoryItem[]; label: string }) {
   if (items.length === 0) return null;
   return (
-    <div className="container-page relative z-10 -mt-[90px] sm:-mt-10">
+    <div className="container-page relative z-10 -mt-6 sm:-mt-10">
       <nav aria-label={label} className="rounded-[7px] bg-white px-2 py-3 shadow-[var(--shadow-card)] sm:shadow-none">
         <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
           {items.map((c) => (

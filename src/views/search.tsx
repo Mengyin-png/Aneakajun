@@ -141,7 +141,7 @@ export default async function SearchPage({ params, searchParams }: Props) {
             <ul className="grid gap-[30px] sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {result.items.map((r) => (
                 <li key={`${r.type}-${r.data.id}`} className="flex flex-col">
-                  <span className="mb-2 text-[13px] text-muted">
+                  <span className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted [:lang(km)_&]:normal-case [:lang(km)_&]:tracking-normal">
                     {r.type === "person"
                       ? t.search.typePerson
                       : r.type === "organization"
@@ -157,9 +157,7 @@ export default async function SearchPage({ params, searchParams }: Props) {
                   ) : r.type === "opportunity" ? (
                     <OpportunityCard item={r.data} locale={locale} labels={t.opportunities} />
                   ) : (
-                    <div className="card-elevated h-full p-5">
-                      <ArticleCard article={r.data} locale={locale} byLabel={t.common.by} />
-                    </div>
+                    <ArticleCard article={r.data} locale={locale} byLabel={t.common.by} />
                   )}
                 </li>
               ))}

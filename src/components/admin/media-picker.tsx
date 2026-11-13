@@ -2,22 +2,37 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState, useTransition } from "react";
-import { MAX_UPLOAD_BYTES } from "@/lib/media-validation";
+import { MAX_UPLOAD_BYTES, MAX_VIDEO_BYTES } from "@/lib/media-validation";
 import { listMedia, uploadMedia, type MediaItem } from "@/server/actions/media";
 
 export type PickedMedia = { id: string; url: string } | null;
 
-/** Upload an image or pick one from the media library. */
+const ACCEPT = {
+  image: "image/jpeg,image/png,image/webp,image/gif",
+  video: "video/mp4,video/webm",
+};
+
+function Thumb({ url, kind, className }: { url: string; kind: "image" | "video"; className: string }) {
+  return kind === "video" ? (
+    <video src={url} muted playsInline preload="metadata" className={className} />
+  ) : (
+    <Image src={url} alt="" width={160} height={160} className={className} />
+  );
+}
+
+/** Upload an image/video or pick one from the media library. */
 export function MediaPicker({
   label,
   value,
   onChange,
   hint,
+  kind = "image",
 }: {
   label: string;
   value: PickedMedia;
   onChange: (m: PickedMedia) => void;
   hint?: string;
+  kind?: "image" | "video";
 }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<MediaItem[]>([]);
@@ -26,6 +41,7 @@ export function MediaPicker({
   const [pending, startTransition] = useTransition();
   const fileRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const maxBytes = kind === "video" ? MAX_VIDEO_BYTES : MAX_UPLOAD_BYTES;
 
   useEffect(() => {
     const d = dialogRef.current;
@@ -36,22 +52,24 @@ export function MediaPicker({
 
   const load = (query = q) =>
     startTransition(async () => {
-      const res = await listMedia({ q: query });
+      const res = await listMedia({ q: query, kind });
       if (res.ok) setItems(res.data);
       else setError(res.message);
     });
 
   const upload = (file: File) => {
     setError(null);
-    if (file.size > MAX_UPLOAD_BYTES) {
-      setError("Images must be 5 MB or smaller.");
+    if (file.size > maxBytes) {
+      setError(kind === "video" ? "Videos must be 50 MB or smaller." : "Images must be 5 MB or smaller.");
       return;
     }
     const fd = new FormData();
     fd.set("file", file);
     startTransition(async () => {
       const res = await uploadMedia(fd);
-      if (res.ok) {
+      if (res.ok && !res.data.mimeType.startsWith(`${kind}/`)) {
+        setError(kind === "video" ? "Please choose a video file." : "Please choose an image file.");
+      } else if (res.ok) {
         onChange({ id: res.data.id, url: res.data.url });
         setOpen(false);
       } else setError(res.message);
@@ -65,9 +83,9 @@ export function MediaPicker({
       <div className="flex items-center gap-4">
         <div className="grid size-20 shrink-0 place-items-center overflow-hidden rounded-lg border border-line bg-canvas">
           {value ? (
-            <Image src={value.url} alt="" width={80} height={80} className="size-full object-cover" />
+            <Thumb url={value.url} kind={kind} className="size-full object-cover" />
           ) : (
-            <span className="text-xs text-muted">No image</span>
+            <span className="text-xs text-muted">{kind === "video" ? "No video" : "No image"}</span>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -93,7 +111,7 @@ export function MediaPicker({
         <input
           ref={fileRef}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/gif"
+          accept={ACCEPT[kind]}
           className="hidden"
           aria-label={`Upload ${label}`}
           onChange={(e) => e.target.files?.[0] && upload(e.target.files[0])}
@@ -117,8 +135,8 @@ export function MediaPicker({
             <input
               type="search"
               value={q}
-              placeholder="Search images…"
-              aria-label="Search images"
+              placeholder="Search…"
+              aria-label="Search media"
               onChange={(e) => {
                 setQ(e.target.value);
                 load(e.target.value);
@@ -133,7 +151,7 @@ export function MediaPicker({
         <div className="max-h-[60vh] overflow-y-auto p-4">
           {items.length === 0 ? (
             <p className="py-10 text-center text-sm text-muted">
-              {pending ? "Loading…" : "No images yet. Use Upload to add one."}
+              {pending ? "Loading…" : "Nothing here yet. Use Upload to add one."}
             </p>
           ) : (
             <ul className="grid grid-cols-3 gap-3 sm:grid-cols-5">
@@ -148,13 +166,7 @@ export function MediaPicker({
                     className={`block w-full overflow-hidden rounded-lg border-2 ${value?.id === m.id ? "border-brand" : "border-transparent hover:border-brand/40"}`}
                     title={m.originalName}
                   >
-                    <Image
-                      src={m.url}
-                      alt={m.altText ?? ""}
-                      width={160}
-                      height={160}
-                      className="aspect-square w-full object-cover"
-                    />
+                    <Thumb url={m.url} kind={kind} className="aspect-square w-full object-cover" />
                   </button>
                 </li>
               ))}

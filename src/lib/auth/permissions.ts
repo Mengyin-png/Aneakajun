@@ -4,6 +4,7 @@
  * seed writes, and the typed keys the code checks against.
  */
 export const PERMISSIONS = {
+  "admin.access": "Sign in to the admin dashboard",
   "content.create": "Create people, organizations and articles",
   "content.edit": "Edit any content",
   "content.editOwn": "Edit content you created (while unpublished)",
@@ -15,11 +16,13 @@ export const PERMISSIONS = {
   "users.manage": "Manage users and roles",
   "settings.manage": "Edit website settings",
   "audit.view": "View the activity log",
+  "forms.manage": "Build journey forms and manage their questions",
+  "submissions.review": "Review, approve and reject form submissions",
 } as const;
 
 export type PermissionKey = keyof typeof PERMISSIONS;
 
-export const ROLE_KEYS = ["SUPER_ADMIN", "ADMIN", "EDITOR", "CONTRIBUTOR"] as const;
+export const ROLE_KEYS = ["SUPER_ADMIN", "ADMIN", "EDITOR", "CONTRIBUTOR", "MEMBER"] as const;
 export type RoleKey = (typeof ROLE_KEYS)[number];
 
 const ALL = Object.keys(PERMISSIONS) as PermissionKey[];
@@ -44,12 +47,28 @@ export const ROLE_DEFINITIONS: Record<
     name: "Editor",
     description: "Creates, edits and publishes content.",
     rank: 50,
-    permissions: ["content.create", "content.edit", "content.publish", "media.upload"],
+    permissions: [
+      "admin.access",
+      "content.create",
+      "content.edit",
+      "content.publish",
+      "media.upload",
+      "submissions.review",
+    ],
   },
   CONTRIBUTOR: {
     name: "Contributor",
     description: "Drafts content and submits it for review; cannot publish.",
     rank: 25,
-    permissions: ["content.create", "content.editOwn", "media.upload"],
+    permissions: ["admin.access", "content.create", "content.editOwn", "media.upload"],
+  },
+  MEMBER: {
+    name: "Member",
+    description: "Public account (Google sign-in). Reads full guidance and submits journey forms. No admin access.",
+    rank: 0,
+    permissions: [],
   },
 };
+
+/** Roles that belong to staff (can reach /admin). */
+export const STAFF_ROLE_KEYS: RoleKey[] = ["SUPER_ADMIN", "ADMIN", "EDITOR", "CONTRIBUTOR"];

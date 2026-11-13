@@ -69,8 +69,8 @@ export function HeroSearch({
           ))}
         </select>
         <Icon
-          name="location"
-          className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 fill-[#4d4d4d]/80 text-white"
+          name="chevronDown"
+          className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 text-[#4d4d4d]"
         />
       </div>
 
@@ -97,7 +97,7 @@ export function HeroSearch({
         />
       </div>
 
-      <button type="submit" className="btn-primary h-[43px] px-[52px] text-base font-normal">
+      <button type="submit" className="btn-primary h-[43px] px-8 text-base font-normal md:px-10">
         {labels.search}
       </button>
     </form>

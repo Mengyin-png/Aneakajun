@@ -121,3 +121,83 @@ body {
     @apply text-brand underline underline-offset-2 hover:text-brand-strong;
   }
 }
+
+/* ── Homepage cinematic layer ─────────────────────────────────────────── */
+
+/* Styles that apply while the header floats transparently over the hero.
+   A nested [data-overlay=false] (e.g. the open mobile menu) opts back out. */
+@custom-variant on-hero (&:where([data-overlay="true"] *):not(:where([data-overlay="false"] *)));
+
+@theme {
+  --animate-rise: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  --animate-kenburns: kenburns 28s ease-in-out infinite alternate;
+  --animate-drift: drift 18s ease-in-out infinite alternate;
+  --animate-scroll-cue: scroll-cue 2.2s ease-in-out infinite;
+  --ease-out-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --color-hero-ink: #06221f;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes kenburns {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.12) translate3d(-1.5%, -1%, 0);
+  }
+}
+@keyframes drift {
+  from {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, 3%, 0) scale(1.1);
+  }
+}
+@keyframes scroll-cue {
+  0% {
+    transform: scaleY(0);
+    transform-origin: top;
+  }
+  45% {
+    transform: scaleY(1);
+    transform-origin: top;
+  }
+  55% {
+    transform: scaleY(1);
+    transform-origin: bottom;
+  }
+  100% {
+    transform: scaleY(0);
+    transform-origin: bottom;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Hero journey selector: high-contrast keyboard ring on the dark hero. */
+.hero-select:focus-visible {
+  outline-color: #fff;
+  outline-offset: 0.12em;
+}
+.hero-select[data-kbd="false"]:focus-visible {
+  outline: none;
+}

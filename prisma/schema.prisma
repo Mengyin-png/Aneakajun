@@ -79,7 +79,11 @@ model User {
   id               String    @id @default(cuid())
   email            String    @unique
   name             String
-  passwordHash     String
+  /// Null for members who only sign in with Google.
+  passwordHash     String?
+  /// Google account subject ("sub"); set for members who signed in with Google.
+  googleSub        String?   @unique
+  avatarUrl        String?
   roleId           String
   role             Role      @relation(fields: [roleId], references: [id], onDelete: Restrict)
   isActive         Boolean   @default(true)
@@ -89,15 +93,20 @@ model User {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  sessions           Session[]
-  auditLogs          AuditLog[]
-  mediaUploads       Media[]
-  peopleCreated      Person[]       @relation("PersonCreatedBy")
-  orgsCreated        Organization[] @relation("OrganizationCreatedBy")
-  articlesCreated    Article[]      @relation("ArticleCreatedBy")
-  reviewedSubmission Submission[]   @relation("SubmissionReviewer")
-  notifications      Notification[]
-  bookmarks          Bookmark[]
+  sessions            Session[]
+  auditLogs           AuditLog[]
+  mediaUploads        Media[]
+  peopleCreated       Person[]                  @relation("PersonCreatedBy")
+  orgsCreated         Organization[]            @relation("OrganizationCreatedBy")
+  articlesCreated     Article[]                 @relation("ArticleCreatedBy")
+  reviewedSubmission  Submission[]              @relation("SubmissionReviewer")
+  notifications       Notification[]
+  bookmarks           Bookmark[]
+  guidanceCreated     GuidanceArticle[]         @relation("GuidanceCreatedBy")
+  guidanceReviewed    GuidanceArticle[]         @relation("GuidanceReviewedBy")
+  formSubmissions     FormSubmission[]          @relation("FormSubmitter")
+  submissionsReviewed FormSubmission[]          @relation("FormSubmissionReviewer")
+  reviewHistory       SubmissionReviewHistory[]
 
   @@index([roleId])
 }
@@ -212,11 +221,18 @@ model Media {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  personPhotos    Person[]       @relation("PersonPhoto")
-  orgLogos        Organization[] @relation("OrganizationLogo")
-  orgCovers       Organization[] @relation("OrganizationCover")
-  articleFeatured Article[]      @relation("ArticleFeaturedImage")
+  personPhotos    Person[]           @relation("PersonPhoto")
+  orgLogos        Organization[]     @relation("OrganizationLogo")
+  orgCovers       Organization[]     @relation("OrganizationCover")
+  articleFeatured Article[]          @relation("ArticleFeaturedImage")
   eventImages     Event[]
+  journeyCovers   Journey[]          @relation("JourneyCover")
+  journeyVideos   Journey[]          @relation("JourneyVideo")
+  guidanceCovers  GuidanceArticle[]  @relation("GuidanceCover")
+  guidanceVideos  GuidanceArticle[]  @relation("GuidanceVideo")
+  guidanceImages  GuidanceSection[]
+  homeHeroVideos  HomepageSettings[] @relation("HomeHeroVideo")
+  homeHeroImages  HomepageSettings[] @relation("HomeHeroImage")
 
   @@index([createdAt(sort: Desc)])
 }
@@ -601,4 +617,261 @@ model Bookmark {
   createdAt  DateTime @default(now())
 
   @@unique([userId, entityType, entityId])
+}
+
+// ─────────────── Journeys: Live / Visit / Business guidance ───────────────
+
+/// A top-level user journey ("I want to ___ in Cambodia"). Keys are stable
+/// (live, visit, business) and double as URL slugs.
+model Journey {
+  id            String   @id @default(cuid())
+  key           String   @unique
+  title         String
+  titleKm       String?
+  verb          String // shown in the homepage sentence, e.g. "Live"
+  verbKm        String?
+  description   String?
+  descriptionKm String?
+  icon          String   @default("grid")
+  accentColor   String   @default("#09786a")
+  coverId       String?
+  cover         Media?   @relation("JourneyCover", fields: [coverId], references: [id], onDelete: SetNull)
+  videoId       String?
+  video         Media?   @relation("JourneyVideo", fields: [videoId], references: [id], onDelete: SetNull)
+  isEnabled     Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  articles    GuidanceArticle[]
+  forms       JourneyForm[]
+  submissions FormSubmission[]
+
+  @@index([isEnabled, sortOrder])
+}
+
+/// Structured guidance article. Body text lives in ordered sections so the
+/// guest preview (first 40%) can be computed and enforced on the server.
+model GuidanceArticle {
+  id             String        @id @default(cuid())
+  journeyId      String
+  journey        Journey       @relation(fields: [journeyId], references: [id], onDelete: Restrict)
+  slug           String
+  status         ContentStatus @default(DRAFT)
+  isFeatured     Boolean       @default(false)
+  sortOrder      Int           @default(0)
+  coverId        String?
+  cover          Media?        @relation("GuidanceCover", fields: [coverId], references: [id], onDelete: SetNull)
+  videoId        String?
+  video          Media?        @relation("GuidanceVideo", fields: [videoId], references: [id], onDelete: SetNull)
+  /// When an editor last checked the content against its sources.
+  lastReviewedAt DateTime?
+  reviewedById   String?
+  reviewedBy     User?         @relation("GuidanceReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  publishedAt    DateTime?
+  createdById    String?
+  createdBy      User?         @relation("GuidanceCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  translations GuidanceArticleTranslation[]
+  sections     GuidanceSection[]
+  references   GuidanceReference[]
+
+  @@unique([journeyId, slug])
+  @@index([journeyId, status, sortOrder])
+  @@index([status, isFeatured])
+}
+
+model GuidanceArticleTranslation {
+  id             String          @id @default(cuid())
+  articleId      String
+  article        GuidanceArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  locale         Locale
+  title          String
+  summary        String?
+  nextSteps      String?
+  seoTitle       String?
+  seoDescription String?
+
+  @@unique([articleId, locale])
+}
+
+enum GuidanceSectionKind {
+  CONTENT
+  NOTE
+  WARNING
+}
+
+model GuidanceSection {
+  id        String              @id @default(cuid())
+  articleId String
+  article   GuidanceArticle     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  kind      GuidanceSectionKind @default(CONTENT)
+  sortOrder Int                 @default(0)
+  imageId   String?
+  image     Media?              @relation(fields: [imageId], references: [id], onDelete: SetNull)
+  heading   String
+  headingKm String?
+  body      String
+  bodyKm    String?
+
+  @@index([articleId, sortOrder])
+}
+
+/// External source or resource cited by a guidance article.
+model GuidanceReference {
+  id        String          @id @default(cuid())
+  articleId String
+  article   GuidanceArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  title     String
+  titleKm   String?
+  url       String
+  publisher String?
+  sortOrder Int             @default(0)
+
+  @@index([articleId, sortOrder])
+}
+
+// ─────────────── Dynamic journey forms and submissions ───────────────
+
+enum FormFieldType {
+  TEXT
+  EMAIL
+  NUMBER
+  DATE
+  TEXTAREA
+  SELECT
+  CHECKBOX
+  RADIO
+}
+
+model JourneyForm {
+  id            String   @id @default(cuid())
+  journeyId     String?
+  journey       Journey? @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+  title         String
+  titleKm       String?
+  description   String?
+  descriptionKm String?
+  submitLabel   String?
+  submitLabelKm String?
+  /// The most recently updated active form is the one shown for a journey.
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fields      FormField[]
+  submissions FormSubmission[]
+
+  @@index([journeyId, isActive])
+}
+
+model FormField {
+  id          String        @id @default(cuid())
+  formId      String
+  form        JourneyForm   @relation(fields: [formId], references: [id], onDelete: Cascade)
+  /// Stable machine name, unique within a form (used for answers).
+  key         String
+  type        FormFieldType
+  label       String
+  labelKm     String?
+  helpText    String?
+  helpTextKm  String?
+  placeholder String?
+  required    Boolean       @default(false)
+  /// SELECT / RADIO / CHECKBOX: [{ value, label, labelKm? }]
+  options     Json?
+  /// { minLength?, maxLength?, min?, max? }
+  validation  Json?
+  sortOrder   Int           @default(0)
+
+  answers SubmissionAnswer[]
+
+  @@unique([formId, key])
+  @@index([formId, sortOrder])
+}
+
+enum FormSubmissionStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model FormSubmission {
+  id            String               @id @default(cuid())
+  formId        String
+  form          JourneyForm          @relation(fields: [formId], references: [id], onDelete: Restrict)
+  journeyId     String?
+  journey       Journey?             @relation(fields: [journeyId], references: [id], onDelete: SetNull)
+  userId        String
+  user          User                 @relation("FormSubmitter", fields: [userId], references: [id], onDelete: Cascade)
+  status        FormSubmissionStatus @default(PENDING)
+  /// Staff-only. Never shown to the submitting user.
+  internalNotes String?
+  reviewerId    String?
+  reviewer      User?                @relation("FormSubmissionReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  reviewedAt    DateTime?
+  locale        Locale               @default(en)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  answers SubmissionAnswer[]
+  history SubmissionReviewHistory[]
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([journeyId, status])
+}
+
+/// One answer. Key and label are snapshotted so later form edits never alter past submissions.
+model SubmissionAnswer {
+  id           String         @id @default(cuid())
+  submissionId String
+  submission   FormSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fieldId      String?
+  field        FormField?     @relation(fields: [fieldId], references: [id], onDelete: SetNull)
+  fieldKey     String
+  fieldLabel   String
+  value        Json
+
+  @@index([submissionId])
+}
+
+model SubmissionReviewHistory {
+  id           String                @id @default(cuid())
+  submissionId String
+  submission   FormSubmission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  fromStatus   FormSubmissionStatus?
+  toStatus     FormSubmissionStatus
+  note         String?
+  actorId      String?
+  actor        User?                 @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime              @default(now())
+
+  @@index([submissionId, createdAt])
+}
+
+// ─────────────── Homepage (singleton, managed in the CMS) ───────────────
+
+model HomepageSettings {
+  id             Int      @id @default(1)
+  heroPrefix     String   @default("I want to")
+  heroPrefixKm   String?
+  heroSuffix     String   @default("in Cambodia.")
+  heroSuffixKm   String?
+  heroSubtitle   String?
+  heroSubtitleKm String?
+  ctaLabel       String   @default("Start exploring")
+  ctaLabelKm     String?
+  heroVideoId    String?
+  heroVideo      Media?   @relation("HomeHeroVideo", fields: [heroVideoId], references: [id], onDelete: SetNull)
+  heroImageId    String?
+  heroImage      Media?   @relation("HomeHeroImage", fields: [heroImageId], references: [id], onDelete: SetNull)
+  /// Ordered sections: [{ key, enabled }]
+  sections       Json?
+  /// Useful resources: [{ title, titleKm?, url, description?, descriptionKm? }]
+  resources      Json?
+  updatedAt      DateTime @updatedAt
 }

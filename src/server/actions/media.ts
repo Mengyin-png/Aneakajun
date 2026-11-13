@@ -6,9 +6,10 @@ import { z } from "zod";
 import { logAudit } from "@/lib/audit";
 import { authorize, can } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
-import { IMAGE_TYPES, MAX_UPLOAD_BYTES, sniffImageType } from "@/lib/media-validation";
+import { MAX_VIDEO_BYTES, MEDIA_EXT, sniffMediaType } from "@/lib/media-validation";
 import { getStorage } from "@/lib/storage";
 import type { ActionResult } from "@/lib/validation/content";
+import { MEDIA_USAGE } from "@/server/media-usage";
 import { ActionError, revalidatePublic, runAction } from "./helpers";
 
 export type MediaItem = {
@@ -41,14 +42,20 @@ export async function uploadMedia(formData: FormData): Promise<ActionResult<Medi
     const user = await authorize("media.upload");
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) throw new ActionError("Choose an image to upload.");
-    if (file.size > MAX_UPLOAD_BYTES) throw new ActionError("Images must be 5 MB or smaller.");
+    if (file.size > MAX_VIDEO_BYTES) throw new ActionError("Files must be 50 MB or smaller.");
 
     const bytes = Buffer.from(await file.arrayBuffer());
-    const mime = sniffImageType(bytes);
-    if (!mime) throw new ActionError("Only JPEG, PNG, WebP or GIF images are allowed.");
+    const detected = sniffMediaType(bytes);
+    if (!detected) throw new ActionError("Only JPEG, PNG, WebP or GIF images, or MP4/WebM videos, are allowed.");
+    if (bytes.length > detected.maxBytes) {
+      throw new ActionError(
+        detected.kind === "image" ? "Images must be 5 MB or smaller." : "Videos must be 50 MB or smaller.",
+      );
+    }
+    const mime = detected.mime;
 
     const now = new Date();
-    const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomBytes(12).toString("hex")}.${IMAGE_TYPES[mime]}`;
+    const key = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomBytes(12).toString("hex")}.${MEDIA_EXT[mime]}`;
     const storage = getStorage();
     await storage.put(key, bytes, mime);
 
@@ -79,19 +86,24 @@ export async function uploadMedia(formData: FormData): Promise<ActionResult<Medi
   });
 }
 
-export async function listMedia(params: { q?: string; take?: number } = {}): Promise<ActionResult<MediaItem[]>> {
+export async function listMedia(
+  params: { q?: string; take?: number; kind?: "image" | "video" } = {},
+): Promise<ActionResult<MediaItem[]>> {
   return runAction(async () => {
     await authorize("media.upload");
     const q = (params.q ?? "").trim().slice(0, 100);
     const items = await prisma.media.findMany({
-      where: q
-        ? {
-            OR: [
-              { originalName: { contains: q, mode: "insensitive" } },
-              { altText: { contains: q, mode: "insensitive" } },
-            ],
-          }
-        : undefined,
+      where: {
+        ...(params.kind ? { mimeType: { startsWith: `${params.kind}/` } } : {}),
+        ...(q
+          ? {
+              OR: [
+                { originalName: { contains: q, mode: "insensitive" as const } },
+                { altText: { contains: q, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: Math.min(params.take ?? 60, 200),
     });
@@ -139,9 +151,7 @@ export async function deleteMedia(id: string): Promise<ActionResult> {
     const media = await prisma.media.findUnique({
       where: { id },
       include: {
-        _count: {
-          select: { personPhotos: true, orgLogos: true, orgCovers: true, articleFeatured: true, eventImages: true },
-        },
+        _count: { select: MEDIA_USAGE },
       },
     });
     if (!media) throw new ActionError("This image no longer exists.");

@@ -10,10 +10,11 @@ const HERO_IMAGE = "/images/hero.jpg";
 const hasHeroImage = () => existsSync(path.join(process.cwd(), "public", HERO_IMAGE));
 
 /** Full-bleed cover with dark overlay, behind the floating header. */
-function Cover({ className, children }: { className: string; children: React.ReactNode }) {
+export function Cover({ id, className, children }: { id?: string; className: string; children: React.ReactNode }) {
   const photo = hasHeroImage();
   return (
     <section
+      id={id}
       className={`relative isolate overflow-hidden bg-[#0b3d36] ${className}`}
       style={
         photo
@@ -67,7 +68,7 @@ export type Crumb = { href?: string; label: string };
 /** Inner-page banner with title and breadcrumb, same cover style. */
 export function PageHero({ title, subtitle, crumbs }: { title: string; subtitle?: string | null; crumbs?: Crumb[] }) {
   return (
-    <Cover className="pt-36 pb-16 sm:pt-44 sm:pb-20">
+    <Cover id="main-content" className="pt-36 pb-16 sm:pt-44 sm:pb-20">
       <div className="container-page text-center">
         {crumbs && crumbs.length > 0 && (
           <nav aria-label="Breadcrumb" className="mb-3 text-sm text-white/80">

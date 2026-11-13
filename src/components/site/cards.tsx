@@ -113,7 +113,7 @@ export function OrganizationTile({
 }) {
   const l = orgListing(org, locale);
   return (
-    <Link href={l.href} className={`group relative block h-60 overflow-hidden rounded-[4px] ${className}`}>
+    <Link href={l.href} className={`group relative block h-60 overflow-hidden rounded-[var(--radius-card)] ${className}`}>
       <div className="absolute inset-0 transition duration-500 group-hover:scale-[1.03]">
         <MediaPanel
           src={l.imageUrl}
@@ -163,7 +163,7 @@ export function ListingRow({
         </div>
         <h3 className="text-lg leading-snug text-brand group-hover:underline">{l.name}</h3>
         <Location text={l.location} className="mt-1" />
-        {l.summary && <p className="mt-3 line-clamp-2 text-sm font-bold text-brand">{l.summary}</p>}
+        {l.summary && <p className="mt-3 line-clamp-2 text-sm text-ink-soft">{l.summary}</p>}
       </div>
     </Link>
   );
@@ -182,7 +182,7 @@ export function ArticleCard({
   const href = localePath(locale, `/articles/${article.slug}`);
   return (
     <article className="flex h-full flex-col">
-      <Link href={href} className="block overflow-hidden rounded-[4px]" tabIndex={-1} aria-hidden="true">
+      <Link href={href} className="block overflow-hidden rounded-[var(--radius-card)]" tabIndex={-1} aria-hidden="true">
         <MediaPanel
           src={article.imageUrl}
           name={article.title}

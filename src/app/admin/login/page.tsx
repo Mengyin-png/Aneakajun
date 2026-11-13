@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { can } from "@/lib/auth/guard";
 import { getCurrentUser } from "@/lib/auth/session";
 import { LoginForm } from "./login-form";
 
@@ -6,7 +7,8 @@ export const metadata = { title: "Sign in" };
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ next?: string }> }) {
-  if (await getCurrentUser()) redirect("/admin");
+  const current = await getCurrentUser();
+  if (current && can(current, "admin.access")) redirect("/admin");
   const { next } = await searchParams;
   return (
     <main className="grid min-h-dvh place-items-center px-4 py-10">

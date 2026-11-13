@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
-import { MAX_UPLOAD_BYTES } from "@/lib/media-validation";
+import { MAX_VIDEO_BYTES } from "@/lib/media-validation";
 import { deleteMedia, updateMediaAlt, uploadMedia, type MediaItem } from "@/server/actions/media";
 import { FormAlert } from "./controls";
 
@@ -20,8 +20,8 @@ export function MediaLibrary({ items, canManage }: { items: (MediaItem & { usage
     start(async () => {
       let ok = 0;
       for (const file of Array.from(files)) {
-        if (file.size > MAX_UPLOAD_BYTES) {
-          setMessage({ kind: "error", text: `${file.name}: images must be 5 MB or smaller.` });
+        if (file.size > MAX_VIDEO_BYTES) {
+          setMessage({ kind: "error", text: `${file.name}: files must be 50 MB or smaller.` });
           continue;
         }
         const fd = new FormData();
@@ -42,18 +42,19 @@ export function MediaLibrary({ items, canManage }: { items: (MediaItem & { usage
     <div className="space-y-4">
       <div className="card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-muted">
-          JPEG, PNG, WebP or GIF, up to 5 MB each. The file type is checked from its contents.
+          Images (JPEG, PNG, WebP, GIF) up to 5 MB, videos (MP4, WebM) up to 50 MB. The type is checked from the file
+          contents.
         </p>
         <button type="button" className="btn-primary" disabled={pending} onClick={() => fileRef.current?.click()}>
-          {pending ? "Working…" : "Upload images"}
+          {pending ? "Working…" : "Upload files"}
         </button>
         <input
           ref={fileRef}
           type="file"
           multiple
-          accept="image/jpeg,image/png,image/webp,image/gif"
+          accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm"
           className="hidden"
-          aria-label="Upload images"
+          aria-label="Upload files"
           onChange={(e) => e.target.files && upload(e.target.files)}
         />
       </div>
@@ -64,19 +65,33 @@ export function MediaLibrary({ items, canManage }: { items: (MediaItem & { usage
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {items.map((m) => (
             <li key={m.id} className="card overflow-hidden">
-              <Image
-                src={m.url}
-                alt={m.altText ?? ""}
-                width={400}
-                height={300}
-                className="aspect-[4/3] w-full bg-canvas object-cover"
-              />
+              {m.mimeType.startsWith("video/") ? (
+                <video
+                  src={m.url}
+                  muted
+                  playsInline
+                  controls
+                  preload="metadata"
+                  className="aspect-[4/3] w-full bg-black object-cover"
+                />
+              ) : (
+                <Image
+                  src={m.url}
+                  alt={m.altText ?? ""}
+                  width={400}
+                  height={300}
+                  className="aspect-[4/3] w-full bg-canvas object-cover"
+                />
+              )}
               <div className="space-y-2 p-3 text-xs">
                 <p className="truncate font-medium text-ink" title={m.originalName}>
                   {m.originalName}
                 </p>
                 <p className="text-muted">
-                  {(m.sizeBytes / 1024).toFixed(0)} KB · {m.mimeType.replace("image/", "")} · used {m.usage}×
+                  {m.sizeBytes > 1048576
+                    ? `${(m.sizeBytes / 1048576).toFixed(1)} MB`
+                    : `${(m.sizeBytes / 1024).toFixed(0)} KB`}{" "}
+                  · {m.mimeType.split("/")[1]} · used {m.usage}×
                 </p>
                 {editing === m.id ? (
                   <form

@@ -16,6 +16,8 @@ export const can = (user: SessionUser | null, permission: PermissionKey) => Bool
 export async function requireUser(permission?: PermissionKey): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/admin/login");
+  // Public members (Google sign-in) have a session but no admin access.
+  if (!can(user, "admin.access")) redirect("/admin/login?member=1");
   if (permission && !can(user, permission)) redirect("/admin?denied=1");
   return user;
 }

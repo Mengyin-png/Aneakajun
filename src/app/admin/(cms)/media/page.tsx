@@ -2,6 +2,7 @@ import { AdminPageHeader } from "@/components/admin/admin-table";
 import { MediaLibrary } from "@/components/admin/media-library";
 import { can, requireUser } from "@/lib/auth/guard";
 import { prisma } from "@/lib/db";
+import { MEDIA_USAGE } from "@/server/media-usage";
 
 export const metadata = { title: "Media library" };
 
@@ -11,9 +12,7 @@ export default async function MediaPage() {
     orderBy: { createdAt: "desc" },
     take: 200,
     include: {
-      _count: {
-        select: { personPhotos: true, orgLogos: true, orgCovers: true, articleFeatured: true, eventImages: true },
-      },
+      _count: { select: MEDIA_USAGE },
     },
   });
   const items = rows.map(({ _count, ...m }) => ({

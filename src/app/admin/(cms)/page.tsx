@@ -12,7 +12,7 @@ export default async function Dashboard({
   searchParams: Promise<Record<string, string | undefined>>;
 }) {
   const user = await requireUser();
-  const [stats, inReview, activity] = await Promise.all([
+  const [stats, inReview, activity, pendingSubmissions] = await Promise.all([
     dashboardStats(),
     can(user, "content.publish")
       ? Promise.all([
@@ -40,6 +40,7 @@ export default async function Dashboard({
           include: { user: { select: { name: true } } },
         })
       : null,
+    can(user, "submissions.review") ? prisma.formSubmission.count({ where: { status: "PENDING" } }) : null,
   ]);
 
   const cards = [
@@ -71,6 +72,16 @@ export default async function Dashboard({
     <>
       <AdminPageHeader title={`Welcome, ${user.name}`} description={`Signed in as ${user.role.name}.`} />
       <Notice params={await searchParams} />
+      {pendingSubmissions !== null && (
+        <Link
+          href="/admin/submissions?status=PENDING"
+          className="card mb-4 flex items-center justify-between p-4 transition hover:border-brand/40"
+          data-testid="pending-submissions"
+        >
+          <span className="text-sm text-ink-soft">Journey requests waiting for review</span>
+          <span className="text-2xl font-semibold tabular-nums text-ink">{pendingSubmissions}</span>
+        </Link>
+      )}
       <div className="grid gap-4 sm:grid-cols-3">
         {cards.map((c) => (
           <Link key={c.label} href={c.href} className="card p-5 transition hover:border-brand/40">

@@ -9,6 +9,9 @@ import { isLocale, type Locale } from "@/lib/i18n/config";
 import { getDictionary } from "@/lib/i18n/dictionaries";
 import { siteUrl } from "@/lib/seo";
 import { getArticle } from "@/server/queries/articles";
+import { getGuidanceForPreview, getRelatedGuidance } from "@/server/queries/journeys";
+import { GuidanceBody } from "@/components/site/guidance-body";
+import { PageHero } from "@/components/site/hero";
 import { getOrganizationProfile } from "@/server/queries/organizations";
 import { getPersonProfile } from "@/server/queries/people";
 
@@ -20,11 +23,13 @@ export default async function PreviewPage({
   searchParams,
 }: {
   params: Promise<{ type: string; id: string }>;
-  searchParams: Promise<{ locale?: string }>;
+  searchParams: Promise<{ locale?: string; guest?: string }>;
 }) {
   await requireUser();
   const { type, id } = await params;
-  const lp = (await searchParams).locale;
+  const sp = await searchParams;
+  const lp = sp.locale;
+  const guest = sp.guest === "1";
   const locale: Locale = isLocale(lp) ? lp : "en";
   const t = getDictionary(locale);
 
@@ -45,6 +50,33 @@ export default async function PreviewPage({
     if (!a) notFound();
     status = a.status;
     content = <ArticleView article={a} locale={locale} t={t} shareUrl={`${siteUrl()}/articles/${a.slug}`} />;
+  } else if (type === "guidance") {
+    const g = await getGuidanceForPreview(id, locale);
+    if (!g) notFound();
+    status = g.status;
+    const related = await getRelatedGuidance(g.journeyId, g.id, locale);
+    content = (
+      <>
+        <PageHero title={g.title} crumbs={[{ label: g.journeyTitle }, { label: g.title }]} />
+        <GuidanceBody
+          guide={g}
+          related={related}
+          locale={locale}
+          t={t}
+          fullAccess={!guest}
+          signInHref="#"
+          formHref={`/${g.journeyKey}/form`}
+          previewBanner={
+            <p className="mb-4 flex flex-wrap gap-3 rounded bg-white p-3 text-sm shadow-[var(--shadow-card)]">
+              <span>{guest ? "Showing the guest view (first 40%)." : "Showing the signed-in member view."}</span>
+              <Link href={`?locale=${locale}${guest ? "" : "&guest=1"}`} className="text-brand underline">
+                {guest ? "Show member view" : "Show guest view"}
+              </Link>
+            </p>
+          }
+        />
+      </>
+    );
   } else notFound();
 
   return (

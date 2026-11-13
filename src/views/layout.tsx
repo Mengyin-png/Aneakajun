@@ -49,8 +49,8 @@ export default async function LocaleLayout({ children, params }: Props) {
     <html lang={HTML_LANG[locale]} className={`${nanum.variable} ${khmer.variable}`}>
       <body className="flex min-h-dvh flex-col">
         <a
-          href="#main"
-          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-4 focus:py-2"
+          href="#main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-white focus:px-4 focus:py-2.5 focus:text-sm focus:font-semibold focus:text-brand focus:shadow-lg focus:ring-2 focus:ring-brand focus:ring-offset-2"
         >
           {t.common.skipToContent}
         </a>

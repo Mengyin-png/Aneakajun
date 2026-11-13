@@ -9,8 +9,8 @@ const nextConfig: NextConfig = {
   // Standalone output is easy to containerise for Daun Penh Cloud (node server.js).
   output: "standalone",
   experimental: {
-    // Server actions handle image uploads (max 5 MB enforced in code).
-    serverActions: { bodySizeLimit: "6mb" },
+    // Server actions handle uploads (images 5 MB, videos 50 MB, enforced in code).
+    serverActions: { bodySizeLimit: "55mb" },
   },
   async headers() {
     return [

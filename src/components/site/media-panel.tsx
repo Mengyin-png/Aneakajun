@@ -17,6 +17,7 @@ function initials(name: string) {
 export function MediaPanel({
   src,
   name,
+  alt,
   sizes,
   className = "",
   fit = "cover",
@@ -24,6 +25,7 @@ export function MediaPanel({
 }: {
   src: string | null;
   name: string;
+  alt?: string;
   sizes: string;
   className?: string;
   fit?: "cover" | "contain";
@@ -34,7 +36,7 @@ export function MediaPanel({
       <div className={`relative overflow-hidden ${fit === "contain" ? "bg-white" : "bg-pill"} ${className}`}>
         <Image
           src={src}
-          alt=""
+          alt={alt ?? name}
           fill
           sizes={sizes}
           className={fit === "contain" ? "object-contain p-6" : "object-cover"}

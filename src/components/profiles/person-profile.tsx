@@ -39,10 +39,11 @@ export function PersonProfileView({ person, locale, t }: { person: PersonProfile
 
       <div className="bg-canvas pb-20">
         <div className="container-page">
-          <section className="card-elevated relative z-10 -mt-12 flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
+          <section className="card-elevated relative z-10 -mt-8 sm:-mt-12 flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:p-8">
             <MediaPanel
               src={person.photo?.url ?? null}
               name={person.name}
+              alt={person.name}
               sizes="128px"
               className="size-28 shrink-0 rounded-full sm:size-32"
             />
@@ -59,7 +60,7 @@ export function PersonProfileView({ person, locale, t }: { person: PersonProfile
                   </Chip>
                 )}
               </div>
-              <h2 className="mt-3 text-2xl text-brand">{person.name}</h2>
+              <p className="mt-3 text-2xl font-bold text-brand">{person.name}</p>
               {location && (
                 <p className="mt-1 flex items-center gap-1 text-ink-soft">
                   <Icon name="location" className="size-4" />
@@ -68,19 +69,27 @@ export function PersonProfileView({ person, locale, t }: { person: PersonProfile
               )}
             </div>
             {links.length > 0 && (
-              <ul className="flex flex-wrap gap-2 sm:max-w-[260px] sm:justify-end">
-                {links.map((l) => (
-                  <li key={l.label}>
-                    <a
-                      href={l.href}
-                      target={l.href.startsWith("mailto:") ? undefined : "_blank"}
-                      rel="noopener noreferrer"
-                      className="btn-primary px-4 py-1.5 font-normal"
-                    >
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
+              <ul className="flex flex-wrap gap-2 sm:max-w-[280px] sm:justify-end">
+                {links.map((l) => {
+                  const isEmail = l.href.startsWith("mailto:");
+                  return (
+                    <li key={l.label}>
+                      <a
+                        href={l.href}
+                        target={isEmail ? undefined : "_blank"}
+                        rel={isEmail ? undefined : "noopener noreferrer"}
+                        className={
+                          isEmail
+                            ? "btn-primary inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium"
+                            : "btn-secondary inline-flex items-center gap-1.5 px-3.5 py-1.5 text-sm font-medium hover:border-brand hover:text-brand"
+                        }
+                      >
+                        {l.label}
+                        {!isEmail && <span className="sr-only"> ({t.journey.visitSite})</span>}
+                      </a>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

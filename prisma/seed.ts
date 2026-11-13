@@ -11,6 +11,7 @@ import { PrismaClient, type Locale } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth/password.ts";
 import { PERMISSIONS, ROLE_DEFINITIONS, type RoleKey } from "../src/lib/auth/permissions.ts";
 import { ARTICLES, CATEGORIES, LOCATIONS, ORGANIZATIONS, PEOPLE, SKILLS, TAGS } from "./seed-data.ts";
+import { FORMS, GUIDANCE, HOMEPAGE, JOURNEYS, SOURCES } from "./seed-journeys.ts";
 
 function assertDevelopmentDatabase() {
   if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed: NODE_ENV=production.");
@@ -315,6 +316,101 @@ async function seedSettings() {
   await prisma.siteSettings.upsert({ where: { id: 1 }, create: { id: 1, ...data }, update: data });
 }
 
+async function seedJourneys(creatorId: string) {
+  const journeyIds = new Map<string, string>();
+  for (const [i, j] of JOURNEYS.entries()) {
+    const data = {
+      title: j.title,
+      titleKm: j.titleKm,
+      verb: j.verb,
+      verbKm: j.verbKm,
+      description: j.description,
+      descriptionKm: j.descriptionKm,
+      icon: j.icon,
+      accentColor: j.accentColor,
+      sortOrder: i,
+    };
+    const row = await prisma.journey.upsert({ where: { key: j.key }, create: { key: j.key, ...data }, update: data });
+    journeyIds.set(j.key, row.id);
+  }
+
+  for (const [i, g] of GUIDANCE.entries()) {
+    const journeyId = journeyIds.get(g.journey)!;
+    const data = {
+      status: "PUBLISHED" as const,
+      isFeatured: g.featured,
+      sortOrder: i,
+      // Seeded guidance is unreviewed on purpose: the site warns until an editor reviews it.
+      lastReviewedAt: null,
+      reviewedById: null,
+      publishedAt: new Date(Date.UTC(2026, 10, 1)),
+    };
+    const article = await prisma.guidanceArticle.upsert({
+      where: { journeyId_slug: { journeyId, slug: g.slug } },
+      create: { journeyId, slug: g.slug, createdById: creatorId, ...data },
+      update: data,
+    });
+    const translations: [Locale, { title: string; summary: string; nextSteps: string | null }][] = [
+      ["en", { title: g.title, summary: g.summary, nextSteps: g.nextSteps }],
+      ["km", { title: g.titleKm, summary: g.summaryKm, nextSteps: null }],
+    ];
+    for (const [locale, t] of translations) {
+      await prisma.guidanceArticleTranslation.upsert({
+        where: { articleId_locale: { articleId: article.id, locale } },
+        create: { articleId: article.id, locale, ...t },
+        update: t,
+      });
+    }
+    await prisma.guidanceSection.deleteMany({ where: { articleId: article.id } });
+    await prisma.guidanceSection.createMany({
+      data: g.sections.map((s, sortOrder) => ({
+        articleId: article.id,
+        sortOrder,
+        kind: s.kind ?? "CONTENT",
+        heading: s.heading,
+        headingKm: s.headingKm ?? null,
+        body: s.body,
+      })),
+    });
+    await prisma.guidanceReference.deleteMany({ where: { articleId: article.id } });
+    await prisma.guidanceReference.createMany({
+      data: g.sources.map((key, sortOrder) => ({ articleId: article.id, sortOrder, ...SOURCES[key] })),
+    });
+  }
+
+  for (const f of FORMS) {
+    const data = {
+      journeyId: journeyIds.get(f.journey)!,
+      title: f.title,
+      titleKm: f.titleKm,
+      description: f.description,
+      descriptionKm: f.descriptionKm,
+      submitLabel: f.submitLabel,
+      isActive: true,
+    };
+    await prisma.journeyForm.upsert({ where: { id: f.id }, create: { id: f.id, ...data }, update: data });
+    for (const [sortOrder, field] of f.fields.entries()) {
+      const fd = {
+        type: field.type,
+        label: field.label,
+        labelKm: field.labelKm ?? null,
+        helpText: field.helpText ?? null,
+        required: field.required ?? false,
+        options: field.options ?? undefined,
+        validation: field.validation ?? undefined,
+        sortOrder,
+      };
+      await prisma.formField.upsert({
+        where: { formId_key: { formId: f.id, key: field.key } },
+        create: { formId: f.id, key: field.key, ...fd },
+        update: fd,
+      });
+    }
+  }
+
+  await prisma.homepageSettings.upsert({ where: { id: 1 }, create: { id: 1, ...HOMEPAGE }, update: HOMEPAGE });
+}
+
 async function main() {
   assertDevelopmentDatabase();
   await seedAccessControl();
@@ -325,6 +421,7 @@ async function main() {
   await seedOrganizations(l, creator.id);
   await seedArticles(l, creator.id);
   await seedSettings();
+  await seedJourneys(creator.id);
 
   const counts = await Promise.all([
     prisma.user.count(),

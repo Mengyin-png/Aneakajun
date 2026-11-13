@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Icon } from "@/components/site/icons";
 import type { Dictionary } from "@/lib/i18n/dictionaries";
 
 /** ClassyAds-style pagination: round page numbers, teal current page. Preserves filters. */
@@ -37,7 +38,7 @@ export function Pagination({
           aria-label={t.previous}
           className={`${circle} text-ink-soft hover:bg-pill`}
         >
-          ←
+          <Icon name="arrowLeft" className="size-4" />
         </Link>
       )}
       {pages.map((p, i) => (
@@ -54,7 +55,7 @@ export function Pagination({
       ))}
       {page < pageCount && (
         <Link href={href(page + 1)} rel="next" aria-label={t.next} className={`${circle} text-ink-soft hover:bg-pill`}>
-          →
+          <Icon name="arrowRight" className="size-4" />
         </Link>
       )}
     </nav>
